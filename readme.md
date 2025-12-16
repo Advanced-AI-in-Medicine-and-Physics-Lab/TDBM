@@ -8,7 +8,7 @@ We present additional qualitative results on vessel extraction in XCA and zero-s
 
 <div align="center">
 
-|-----------Origianl XCA ---------|----------------DSA--------------|---------------Ours---------------|
+|-------------Origianl XCA -----------|------------------DSA----------------|-----------------Ours-----------------|
 
 https://github.com/user-attachments/assets/f90df143-a752-4c15-893c-36056dac6aad
 
