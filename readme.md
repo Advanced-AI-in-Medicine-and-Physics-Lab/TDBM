@@ -10,7 +10,7 @@ We present additional qualitative results on vessel extraction in XCA and zero-s
 
 |-----------Origianl XCA ---------|----------------DSA--------------|---------------Ours---------------|
 
-<video src="./src/I-01.mp4" width="600" controls autoplay muted loop></video>
+[Demo 1 Video](src/E-01.mp4)
 
 ---
 
