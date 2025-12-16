@@ -1,6 +1,6 @@
 ## TDBM
 
-We present additional qualitative results on vessel extraction in XCA and zero-shot vessel segmentation to demonstrate the generalization ability of our method. **The source code and trained model weights will be released after the completion of the review process.**
+We present additional qualitative results on vessel extraction in XCA and zero-shot vessel segmentation in unseen modalities to demonstrate the generalization ability of our method. **The source code and trained model weights will be released after the completion of the review process.**
 
 ### Vessel Extraction in XCA (Internal & External Dataset)
 
