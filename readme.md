@@ -44,6 +44,6 @@ Here are more results from zero-shot vessel segmentation:
 
 <div align="center">
 
-<img src="src/zero.png" alt="Zero-shot Vessel Segmentation Result" width="650"/>
+<img src="src/zero.png" alt="Zero-shot Vessel Segmentation Result" width="700"/>
 
 </div>
