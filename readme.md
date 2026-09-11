@@ -1,7 +1,7 @@
 # TDBM: Temporal Diffusion Bridge Model for Vessel Extraction Using Physics-informed Synthetic Data
 
 Official implementation of *Temporal Diffusion Bridge Model for Vessel Extraction
-Using Physics-informed Synthetic Data* (Medical Image Analysis, under review).
+Using Physics-informed Synthetic Data* (Under review).
 
 Jinkui Hao, Donald R. Cantrell, Ramez Abdalla, Sameer A. Ansari, Bo Zhou
 · Department of Radiology, Northwestern University
