@@ -202,19 +202,17 @@ python evaluate.py \
     --save-binary results/xca30/binary
 ```
 
+Pretrained weights are released — see the
+[Releases page]([https://github.com/Advanced-AI-in-Medicine-and-Physics-Lab/TDBM/releases](https://drive.google.com/file/d/1QIe9pZbMrVy2MGCho-rEF7ijL1jXttU-/view?usp=drive_link)).
+Download the checkpoint and pass it via `--checkpoint`, together with the config
+whose `neighbor_num` matches the one it was trained with.
+
 Reports Dice, sensitivity, specificity and accuracy, and writes
 `average_metrics.txt` plus a per-sequence CSV. `--frames` selects which frames of
 each sequence to score; the public XCA30 benchmark annotates the third frame,
 hence index `2`.
 
----
 
-## Pretrained weights
-
-Pretrained weights are released with the paper — see the
-[GitHub releases page](https://github.com/Advanced-AI-in-Medicine-and-Physics-Lab/TDBM/releases).
-Download the checkpoint and pass it via `--checkpoint`, together with the config
-whose `neighbor_num` matches the one it was trained with.
 
 ---
 
