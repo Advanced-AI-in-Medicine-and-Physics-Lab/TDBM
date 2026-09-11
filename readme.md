@@ -176,6 +176,11 @@ python inference.py --config config/tdbm.json --checkpoint model_best.pth \
     --mode multicrop --num-crops 3 --crop-size 224 --resize-to 448
 ```
 
+Pretrained weights are released — see the
+[Releases page]([https://github.com/Advanced-AI-in-Medicine-and-Physics-Lab/TDBM/releases](https://drive.google.com/file/d/1QIe9pZbMrVy2MGCho-rEF7ijL1jXttU-/view?usp=drive_link)).
+Download the checkpoint and pass it via `--checkpoint`, together with the config
+whose `neighbor_num` matches the one it was trained with.
+
 | Flag | Effect |
 | --- | --- |
 | `--mode multicrop` | Runs an `n x n` grid of overlapping crops and fuses the residuals with a pixel-wise minimum. Preserves thin distal vessels; used for all reported numbers. |
@@ -201,11 +206,6 @@ python evaluate.py \
     --frames 2 \
     --save-binary results/xca30/binary
 ```
-
-Pretrained weights are released — see the
-[Releases page]([https://github.com/Advanced-AI-in-Medicine-and-Physics-Lab/TDBM/releases](https://drive.google.com/file/d/1QIe9pZbMrVy2MGCho-rEF7ijL1jXttU-/view?usp=drive_link)).
-Download the checkpoint and pass it via `--checkpoint`, together with the config
-whose `neighbor_num` matches the one it was trained with.
 
 Reports Dice, sensitivity, specificity and accuracy, and writes
 `average_metrics.txt` plus a per-sequence CSV. `--frames` selects which frames of
