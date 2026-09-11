@@ -269,6 +269,4 @@ every bundled or derived third-party component and its license.
 This work builds on [V-System](https://github.com/psweens/V-System),
 [BBDM](https://github.com/xuekt98/BBDM),
 [guided-diffusion](https://github.com/openai/guided-diffusion) /
-[Palette](https://github.com/Janspiry/Palette-Image-to-Image-Diffusion-Models),
-[CUT](https://github.com/taesungp/contrastive-unpaired-translation) and
 [DiffDRR](https://github.com/eigenvivek/DiffDRR).
