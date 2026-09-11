@@ -252,7 +252,7 @@ TDBM/
              Physics-informed Synthetic Data},
   author  = {Hao, Jinkui and Cantrell, Donald R. and Abdalla, Ramez and
              Ansari, Sameer A. and Zhou, Bo},
-  journal = {Medical Image Analysis},
+  journal = {XXX},
   year    = {2026}
 }
 ```
