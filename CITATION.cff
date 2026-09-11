@@ -1,0 +1,32 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite the paper below."
+title: "TDBM: Temporal Diffusion Bridge Model for Vessel Extraction Using Physics-informed Synthetic Data"
+authors:
+  - family-names: Hao
+    given-names: Jinkui
+  - family-names: Cantrell
+    given-names: Donald R.
+  - family-names: Abdalla
+    given-names: Ramez
+  - family-names: Ansari
+    given-names: Sameer A.
+  - family-names: Zhou
+    given-names: Bo
+license: GPL-3.0
+repository-code: "https://github.com/Advanced-AI-in-Medicine-and-Physics-Lab/TDBM"
+preferred-citation:
+  type: article
+  title: "Temporal Diffusion Bridge Model for Vessel Extraction Using Physics-informed Synthetic Data"
+  authors:
+    - family-names: Hao
+      given-names: Jinkui
+    - family-names: Cantrell
+      given-names: Donald R.
+    - family-names: Abdalla
+      given-names: Ramez
+    - family-names: Ansari
+      given-names: Sameer A.
+    - family-names: Zhou
+      given-names: Bo
+  journal: "Medical Image Analysis"
+  year: 2026

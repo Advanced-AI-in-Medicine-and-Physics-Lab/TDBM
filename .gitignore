@@ -1,0 +1,33 @@
+# Byte-compiled / cache
+__pycache__/
+*.py[cod]
+*.so
+.ipynb_checkpoints/
+
+# Environments
+.venv/
+venv/
+env/
+
+# Experiment artefacts
+outputs/
+output/
+logs/
+*.log
+slurm-*.out
+checkpoints/
+*.pth
+*.ckpt
+
+# Data (never commit imaging data)
+data/
+datasets/
+*.nii
+*.nii.gz
+*.dcm
+*.npz
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store

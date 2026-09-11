@@ -1,0 +1,13 @@
+# Core requirements for training, inference and evaluation.
+# Tested with Python 3.9 and CUDA 12.6.
+torch>=2.0
+torchvision>=0.15
+numpy>=1.21
+scipy>=1.7
+opencv-python>=4.5
+Pillow>=9.0
+scikit-learn>=1.0
+tqdm>=4.62
+
+# Additional requirements for the physics-based data engine (data_engine/).
+# Install with:  pip install -r data_engine/requirements.txt

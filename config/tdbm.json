@@ -1,0 +1,45 @@
+{
+    "experiment_name": "TDBM",
+
+    "synthetic_data_root": "data/synthetic/train",
+    "real_data_root": "data/real/train",
+    "val_image_root": "data/XCA30/Images",
+    "val_gt_root": "data/XCA30/GT",
+    "val_frames": [2],
+    "val_crop_size": 280,
+    "val_num_crops": 3,
+    "val_resize_to": 448,
+
+    "imgSize": 256,
+    "neighbor_num": 3,
+    "inner_channel": 64,
+    "res_blocks": 2,
+    "attn_res": [16],
+    "num_timesteps": 1000,
+    "sample_step": 20,
+
+    "overall_aug": true,
+    "shuffle": true,
+
+    "use_vcl": true,
+    "vcl_weight": 0.01,
+    "vcl_temperature": 0.05,
+    "vcl_num_anchors": 256,
+    "vcl_num_negatives": 100,
+    "vcl_patch_size": [1],
+
+    "use_real_data": true,
+    "real_batch_size": 4,
+    "real_weight_start": 0.5,
+    "real_weight_end": 0.25,
+    "real_weight_start_epoch": 2,
+
+    "batch_size": 3,
+    "initial_lr": 5e-5,
+    "weight_decay": 0,
+    "ema_beta": 0.9999,
+    "num_iterations_per_epoch": 2500,
+    "num_epochs": 30,
+    "num_workers": 1,
+    "test_every": 1
+}

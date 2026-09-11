@@ -1,0 +1,41 @@
+# Configuration for the physics-based XCA data engine.
+#
+# Ranges are sampled independently for every synthetic vessel tree, which is what
+# gives the corpus its anatomical and appearance diversity.
+
+vessel_generation:
+  num_samples: 2000          # number of vessel trees to generate
+
+  # Root-vessel diameter, drawn as N(U(d0_mean_min, d0_mean_max), d0_std).
+  d0_mean_min: 8
+  d0_mean_max: 18
+  d0_std: 2.0
+
+  niter_range: [7, 10]       # L-system iterations, i.e. tree depth
+  k_range: [3, 5]            # Murray's law exponent (branching multiplier)
+  d_ratio_range: [1.5, 2.5]  # parent : child diameter ratio
+  epsilon_range: [4, 8]      # segment length / diameter ratio (tortuosity)
+  randmarg_range: [9, 15]    # segment-length irregularity
+  sigma_range: [4, 8]        # stochastic perturbation magnitude
+
+contrast_dynamics:
+  # Gamma-variate enhancement I(r, t) = A (t - t0)^alpha exp(-(t - t0) / beta).
+  alpha_range: [3.0, 6.0]    # temporal dispersion
+  beta_range: [4.0, 7.0]     # clearance / washout rate
+  v_base_range: [0.5, 1.5]   # base flow velocity scale
+  p_flow: 1.0                # flow-to-diameter exponent
+
+  # Timesteps rendered per tree; t_end must exceed the largest contrast arrival
+  # time plus alpha * beta, otherwise the washout tail is cut off.
+  t_start: 0
+  t_end: 500
+  t_step: 100
+
+projection:
+  sdd: 1085.6                      # source-to-detector distance (mm)
+  translation: 166.0               # source-to-isocentre offset (mm)
+  rotations: [[0.0, 0.0, 0.0]]     # C-arm Euler angles (ZXY); add entries for more views
+  orientation: AP
+  bone_attenuation_multiplier: 1.5
+  detector_height: 512             # detector size in pixels
+  contrast_enhance: 3.0            # post-render contrast boost
