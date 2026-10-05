@@ -12,7 +12,7 @@ which is additionally conditioned on a temporal window of neighbouring frames.
 
 The bridge formulation follows BBDM (Li et al., CVPR 2023,
 https://github.com/xuekt98/BBDM); TDBM adds the temporal conditioning and the
-vessel-aware contrastive objective on top of it.
+vessel-aware contrastive objective on top of it.  
 """
 
 from functools import partial
