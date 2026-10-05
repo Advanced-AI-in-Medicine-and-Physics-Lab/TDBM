@@ -56,7 +56,7 @@ class BrownianBridgeModel(nn.Module):
         mt_type: str = "linear",
         max_var: float = 1.0,
         eta: float = 1.0,
-        loss_type: str = "l1",
+        loss_type: str = "l2",
         objective: str = "grad",
         skip_sample: bool = True,
         sample_type: str = "linear",
