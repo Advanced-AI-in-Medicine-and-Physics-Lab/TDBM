@@ -43,7 +43,7 @@ from utils import (EMA, build_model, clone_for_ema, linear_decay, load_config,
 # Feature levels tapped for the contrastive loss.  Level 14 is the deepest
 # encoder block; the decoder levels are excluded because their features are
 # dominated by the reconstruction target rather than by vessel appearance.
-VCL_FEATURE_LEVELS = (14,)
+VCL_FEATURE_LEVELS = (14,17, 23, 26, 29)
 
 
 def get_dataloaders(config):
