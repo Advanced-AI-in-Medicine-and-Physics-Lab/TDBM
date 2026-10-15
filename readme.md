@@ -159,7 +159,6 @@ A SLURM template is provided in `scripts/train.slurm`.
 | `imgSize` | `256` | Training resolution. |
 | `use_vcl` / `vcl_weight` | `true` / `0.01` | Vessel-aware contrastive loss and its weight `alpha`. |
 | `use_real_data` | `true` | Enable the annealed real-data supervision term. |
-| `real_weight_start/end` | `0.5` / `0.25` | Bounds of the annealing schedule `lambda(t)`. |
 | `sample_step` | `20` | Reverse diffusion steps `K` used at inference. |
 | `num_epochs` | `30` | Training length; the LR follows a cosine schedule. |
 
@@ -177,7 +176,7 @@ python inference.py --config config/tdbm.json --checkpoint model_best.pth \
 ```
 
 Pretrained weights are released — see the
-([TDBM Checkpoints](https://drive.google.com/file/d/1QIe9pZbMrVy2MGCho-rEF7ijL1jXttU-/view?usp=drive_link)).
+([TDBM Checkpoints-single frame version](https://drive.google.com/file/d/1QIe9pZbMrVy2MGCho-rEF7ijL1jXttU-/view?usp=drive_link)).
 Download the checkpoint and pass it via `--checkpoint`, together with the config
 whose `neighbor_num` matches the one it was trained with.
 
