@@ -107,71 +107,52 @@ def coordinates2vessel(coords, interpolate=0):
     return strand2vessel(strands[0])
 
 
-def compute_contrast_dynamics(head, add_gamma=False, V_base=1.0, P_flow=1.0, alpha=2.0, beta=1.0):
+def compute_contrast_dynamics(head, add_gamma=False, V_base=1.0, P_flow=1.0, alpha=2.0, beta=1.0,
+                              branch_velocity_jitter=0.0, dispersion_gain=0.0, rng=None):
+    """Assign arrival times and gamma-variate curves to every node of the tree.
+
+    Arrival time: ``t0(child) = t0(parent) + L / v`` with the segment velocity
+    ``v = V_base * d_child ** P_flow * j`` (Murray's-law-consistent flow, ``j`` a
+    per-branch log-normal jitter, see below).
+
+    Diversity controls (both default to 0 = the original behaviour):
+
+    * ``branch_velocity_jitter``: standard deviation of ``log j``.  Each child
+      segment draws its own factor, so sibling branches fill at different speeds
+      and the tree is never filled perfectly symmetrically (as in real
+      angiograms, where daughter branches of similar calibre opacify at
+      different times).
+    * ``dispersion_gain``: the bolus disperses along its path; the time constant
+      of a node's gamma-variate is ``beta * (1 + dispersion_gain * t0 / max_t0)``
+      so distal segments have a broader, lower and later-peaking enhancement
+      curve than the trunk.  With 0 every node has the same curve shape.
     """
-    Compute arrival time (t0) using segment-dependent flow velocity.
-    Add Gamma-variate curve parameters to each node.
-    V_base * d^P_flow is the segment velocity (Murray's Law consistency).
-    """
-    
-    # Initialize origin node's properties
+    rng = np.random.default_rng() if rng is None else rng
+
+    # Pass 1: arrival times (depth-first).
     head.t0 = 0.0
-    if add_gamma:
-        head.gamma = GammaVariate(t0=0.0, alpha=alpha, beta=beta)
-
-    max_t0 = 0
+    max_t0 = 0.0
     stack = [head]
-    
-    # Use a dictionary to keep track of calculated arrival times to avoid recalculating at branch points
-    # key: node object, value: t0
-    arrival_times = {head: 0.0}
-
     while stack:
         node = stack.pop()
-        
-        # Retrieve the current node's arrival time
-        current_t0 = arrival_times[node]
+        max_t0 = max(max_t0, node.t0)
+        for child in node.next:
+            segment_length = ((node.x - child.x) ** 2 + (node.y - child.y) ** 2 + (node.z - child.z) ** 2) ** 0.5
+            jitter = float(np.exp(rng.normal(0.0, branch_velocity_jitter))) if branch_velocity_jitter > 0 else 1.0
+            segment_velocity = V_base * (child.d ** P_flow) * jitter
+            time_to_traverse = segment_length / segment_velocity if segment_velocity > 1e-6 else float("inf")
+            child.t0 = node.t0 + time_to_traverse
+            stack.append(child)
 
-        if node:
-            max_t0 = max(max_t0, current_t0)
+    # Pass 2: enhancement curves (need max_t0 for the dispersion law).
+    if add_gamma:
+        stack = [head]
+        while stack:
+            node = stack.pop()
+            spread = 1.0 + dispersion_gain * (node.t0 / max_t0 if max_t0 > 0 else 0.0)
+            node.gamma = GammaVariate(t0=node.t0, alpha=alpha, beta=beta * spread)
+            stack.extend(node.next)
 
-            for child in node.next:
-                # 1. Compute segment length (Euclidian distance)
-                segment_length = (
-                    (node.x - child.x) ** 2
-                    + (node.y - child.y) ** 2
-                    + (node.z - child.z) ** 2
-                ) ** 0.5
-                
-                # 2. Compute Segment Velocity (Based on Diameter d_child for the segment)
-                # We use the diameter of the *child* node to define the velocity of the segment
-                # flowing into it. If node.d is parent diameter, child.d is diameter of segment
-                d_seg = child.d # Using child diameter for segment velocity
-                
-                # V_s is the segment flow velocity (e.g., V_base * d^1)
-                segment_velocity = V_base * (d_seg ** P_flow)
-                
-                # Check for zero velocity (e.g., if diameter is 0)
-                if segment_velocity <= 1e-6:
-                    time_to_traverse = float('inf')
-                else:
-                    time_to_traverse = segment_length / segment_velocity
-                
-                # 3. Calculate Child's Arrival Time
-                child_t0 = current_t0 + time_to_traverse
-                
-                # Update node properties for visualization/storage (optional but helpful)
-                child.t0 = child_t0
-                
-                # 4. Add Gamma-variate function
-                if add_gamma:
-                    child.gamma = GammaVariate(t0=child_t0, alpha=alpha, beta=beta)
-                
-                # Store and continue DFS
-                arrival_times[child] = child_t0
-                stack.append(child)
-
-    # Return max_t0 to normalize times for plotting (if needed)
     return head, max_t0
 
 
@@ -291,7 +272,8 @@ def coordinates_back(head, t):
     return np.array(columns, dtype=float).T
 
 
-def bolus_injection(coords, t, alpha=2.0, beta=1.0, V_base=1.0, P_flow=1.0, interp_coords_factor=0):
+def bolus_injection(coords, t, alpha=2.0, beta=1.0, V_base=1.0, P_flow=1.0, interp_coords_factor=0,
+                    branch_velocity_jitter=0.0, dispersion_gain=0.0, rng=None, head=None):
     """Input
         [[x1, y1, z1, d1],
          ...
@@ -302,25 +284,23 @@ def bolus_injection(coords, t, alpha=2.0, beta=1.0, V_base=1.0, P_flow=1.0, inte
         ]
     t is the time step. alpha and beta are Gamma-variate parameters.
     V_base and P_flow define the segment velocity based on diameter: V_s = V_base * d^P_flow.
+    Returns ``(coords_with_intensity, max_t0, head)``; pass ``head`` back in for further
+    timesteps of the same tree.
     """
-    # 1. Get vessel tree
-    head = coordinates2vessel(coords, interpolate=interp_coords_factor)
-    
-    # 2. Compute arrival times (t0) and add Gamma-variate curves
-    # Note: max_t0 is the new max_dist substitute
-    head, max_t0 = compute_contrast_dynamics(
-        head, 
-        add_gamma=True, 
-        V_base=V_base, 
-        P_flow=P_flow, 
-        alpha=alpha, 
-        beta=beta
-    )
-    
-    # 3. Compute intensities (I) for time t
-    coords_new = coordinates_back(head, t)
+    # 1. Get vessel tree (or reuse one whose dynamics were already computed, so that
+    #    all timesteps of a tree share the same velocity jitter and arrival times)
+    if head is None:
+        head = coordinates2vessel(coords, interpolate=interp_coords_factor)
+        head, max_t0 = compute_contrast_dynamics(
+            head, add_gamma=True, V_base=V_base, P_flow=P_flow, alpha=alpha, beta=beta,
+            branch_velocity_jitter=branch_velocity_jitter, dispersion_gain=dispersion_gain, rng=rng,
+        )
+        head.max_t0 = max_t0
+    max_t0 = head.max_t0
 
-    return coords_new, max_t0
+    # 2. Intensities (I) for time t
+    coords_new = coordinates_back(head, t)
+    return coords_new, max_t0, head
 
 
 def main():
@@ -347,14 +327,8 @@ def main():
     
     # Example loop
     for t in range(t_start, t_end, 10):
-        coords_with_intensity, max_t0 = bolus_injection(
-            coords_example, 
-            t, 
-            alpha=alpha, 
-            beta=beta, 
-            V_base=V_base,
-            P_flow=P_flow
-        )
+        coords_with_intensity, max_t0, _ = bolus_injection(
+            coords_example, t, alpha=alpha, beta=beta, V_base=V_base, P_flow=P_flow)
         print(f"Time t={t}, Max Arrival Time t0={max_t0:.2f}")
         # print("Output shape:", coords_with_intensity.shape)
         # print("First few points:\n", coords_with_intensity[:, :5])

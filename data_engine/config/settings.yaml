@@ -33,11 +33,23 @@ contrast_dynamics:
   v_base_range: [0.5, 1.5]   # base flow velocity scale
   p_flow: 1.0                # flow-to-diameter exponent
 
-  # Timesteps rendered per tree; t_end must exceed the largest contrast arrival
-  # time plus alpha * beta, otherwise the washout tail is cut off.
+  # Which contrast phases are rendered per tree.
+  #   relative (default): frames_per_tree phases p ~ U(phase_range), rendered at
+  #     t = p * (max_arrival_time + alpha * beta); p < 1 early filling (proximal
+  #     tree only), p ~ 1 peak, p > 1 washout (trunk fading first). phase_anchor
+  #     keeps one frame exactly at the peak.
+  #   absolute: the fixed grid t_start .. t_end step t_step (original behaviour).
+  t_mode: relative
+  frames_per_tree: 4
+  phase_range: [0.3, 2.2]
+  phase_anchor: true
   t_start: 0
   t_end: 500
   t_step: 100
+
+  # Spatial diversity of the enhancement (0 = original behaviour):
+  branch_velocity_jitter: 0.35   # std of log velocity factor per branch -> asymmetric filling
+  dispersion_gain: 0.6           # distal time constant beta * (1 + gain * t0/max_t0) -> broader, later distal curves
 
 projection:
   sdd: 1085.6                      # source-to-detector distance (mm)
@@ -47,3 +59,5 @@ projection:
   bone_attenuation_multiplier: 1.5
   detector_height: 512             # detector size in pixels
   contrast_enhance: 3.0            # post-render contrast boost
+  normalise: per_tree              # per_tree: all phases of a tree share one intensity scale (early/washout
+                                   # frames stay fainter); per_frame: every frame stretched to full range (original)

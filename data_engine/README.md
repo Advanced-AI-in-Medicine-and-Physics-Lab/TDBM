@@ -35,8 +35,19 @@ modalities without fine-tuning.
    detector. Randomised C-arm rotations and translations emulate varying
    fluoroscopic viewpoints and patient positioning.
 
-Each tree is rendered at several timesteps (`t_start`..`t_end` in steps of
-`t_step`), so one tree yields several projections at different contrast phases.
+Each tree is rendered at several **contrast phases** chosen relative to its own
+dynamics (`contrast_dynamics.t_mode: relative`): `frames_per_tree` phases
+`p ~ U(phase_range)` are rendered at `t = p * (max_arrival_time + alpha * beta)`,
+so every tree contributes an early-filling frame (proximal segments only), a
+peak frame and washout frames in which the trunk fades before the distal
+branches. Two further controls diversify the spatial distribution of contrast:
+`branch_velocity_jitter` (log-normal per-branch velocity factor: sibling branches
+opacify at different times, filling is never perfectly symmetric) and
+`dispersion_gain` (the gamma-variate time constant grows with the arrival time,
+so distal curves are broader, lower and later). All phases of one tree are
+normalised with a shared intensity scale (`projection.normalise: per_tree`), so
+the brightness of a frame reflects its phase; `per_frame` restores the original
+per-frame stretching, and `t_mode: absolute` the original fixed time grid.
 
 ### Step 2 — background fusion
 

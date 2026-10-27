@@ -11,7 +11,8 @@ For every synthetic sample this script
 4. renders the volume to a 2-D detector with a differentiable digitally
    reconstructed radiograph (DRR).
 
-The output is one contrast-only projection per timestep, which
+The output is one contrast-only projection per rendered contrast phase (early
+filling, peak, washout; see ``contrast_dynamics`` in the config), which
 ``step2_compose_xca.py`` then fuses with real contrast-free backgrounds.
 
 The synthesis grid (voxel count and spacing) is defined in the config
@@ -136,16 +137,17 @@ def drr_process(
     return img[0][0]
 
 
-def render_projection(volume_path, output_folder, config, device="cuda"):
-    """Render ``volume_path`` from every configured viewpoint and save as PNG.
+def render_projection(volume_path, config, device="cuda"):
+    """Render ``volume_path`` from every configured viewpoint.
 
-    Randomised rotations emulate the varying fluoroscopic viewpoints and patient
-    positioning seen across acquisitions.
+    Returns a list of ``(rotation, projection)`` with the raw (un-normalised) 2-D
+    projections, or an empty list if the volume holds no contrast.  Randomised
+    rotations emulate the varying fluoroscopic viewpoints and patient positioning
+    seen across acquisitions.
     """
-    os.makedirs(output_folder, exist_ok=True)
     sdd = config["sdd"]
     translate = [[0.0, sdd - config["translation"], 0.0]]
-
+    out = []
     for rotation in config["rotations"]:
         with torch.no_grad():
             projection = drr_process(
@@ -158,24 +160,37 @@ def render_projection(volume_path, output_folder, config, device="cuda"):
                 default_sdd=sdd,
                 height=config.get("detector_height", 512),
             )
-
+        projection = projection.float().cpu()
+        if device.startswith("cuda"):
+            torch.cuda.empty_cache()
         span = float(projection.max() - projection.min())
         if not (span > 0):
             # Contrast-free volume (before arrival / after washout): a constant
             # projection would become NaN -> all-black PNG.  Skip it instead.
             print(f"  skipping empty projection of {os.path.basename(volume_path)}")
-            del projection
             continue
-        normalized = (255 * (projection - projection.min()) / span).byte()
-        image = Image.fromarray(normalized.cpu().numpy(), "L")
-        image = ImageEnhance.Contrast(image).enhance(config.get("contrast_enhance", 3.0))
+        out.append((rotation, projection))
+    return out
 
-        file_name = os.path.basename(volume_path)[:-7] + str(rotation) + ".png"
+
+def save_projections(rendered, output_folder, config, scale=None):
+    """Normalise and save rendered projections as PNG.
+
+    ``scale`` is the value mapped to 255.  ``None`` normalises every frame by its
+    own maximum (the original behaviour, which flattens the intensity differences
+    between the contrast phases of a tree); with ``projection.normalise:
+    per_tree`` the caller passes the maximum over all phases of the tree so that
+    early-filling and washout frames stay fainter than the peak frame.
+    """
+    os.makedirs(output_folder, exist_ok=True)
+    enhance = config.get("contrast_enhance", 3.0)
+    for volume_name, rotation, projection in rendered:
+        top = float(projection.max()) if scale is None else float(scale)
+        normalized = (255 * (projection - projection.min()) / max(top - float(projection.min()), 1e-6)).clamp(0, 255).byte()
+        image = Image.fromarray(normalized.numpy(), "L")
+        image = ImageEnhance.Contrast(image).enhance(enhance)
+        file_name = os.path.basename(volume_name)[:-7] + str(rotation) + ".png"
         image.save(os.path.join(output_folder, file_name))
-
-        del projection
-        if device.startswith("cuda"):
-            torch.cuda.empty_cache()
 
 
 def sample_tree_properties(config):
@@ -202,8 +217,33 @@ def sample_tree_properties(config):
     }
 
 
-def generate_sample(index, config, tissue_volume, header, affine, paths, device="cuda"):
+def sample_timesteps(timing, params, max_t0, rng):
+    """Timesteps at which a tree is rendered.
+
+    ``t_mode: absolute`` uses the fixed grid ``t_start .. t_end`` step ``t_step``
+    (original behaviour; most of those frames fall after the washout of trees
+    whose contrast arrives within ~30-90 frames, so they are near-identical).
+    ``t_mode: relative`` (default) draws ``frames_per_tree`` phases ``p`` from
+    ``phase_range`` and renders at ``t = p * (max_t0 + alpha * beta)``, i.e. with
+    respect to the moment the last-arriving segment peaks: ``p < 1`` gives
+    early filling (only the proximal tree opacified), ``p ~ 1`` the peak,
+    ``p > 1`` the washout with the trunk already fading.  ``phase_anchor``
+    optionally keeps one frame exactly at the peak.
+    """
+    if timing.get("t_mode", "relative") == "absolute":
+        return list(range(timing["t_start"], timing["t_end"], timing["t_step"]))
+    peak = max_t0 + params["alpha"] * params["beta"]
+    lo, hi = timing.get("phase_range", [0.3, 2.2])
+    n = int(timing.get("frames_per_tree", 4))
+    phases = list(rng.uniform(lo, hi, size=max(n - 1, 0) if timing.get("phase_anchor", True) else n))
+    if timing.get("phase_anchor", True):
+        phases.append(1.0)
+    return sorted(set(int(round(p * peak)) for p in phases))
+
+
+def generate_sample(index, config, tissue_volume, header, affine, paths, device="cuda", rng=None):
     """Generate one vessel tree and render its projection at every timestep."""
+    rng = np.random.default_rng() if rng is None else rng
     params = sample_tree_properties(config)
     start = time.time()
     print(
@@ -219,35 +259,34 @@ def generate_sample(index, config, tissue_volume, header, affine, paths, device=
 
     dmin = np.nanmin(network, axis=1) * 1.1
     dmax = np.nanmax(network, axis=1) * 1.1
+    resized = resize_network(network, dmin, dmax, tVol=tissue_volume)
 
     timing = config["contrast_dynamics"]
-    for t in range(timing["t_start"], timing["t_end"], timing["t_step"]):
+    dyn = dict(alpha=params["alpha"], beta=params["beta"], V_base=params["v_base"], P_flow=params["p_flow"],
+               interp_coords_factor=0, branch_velocity_jitter=timing.get("branch_velocity_jitter", 0.0),
+               dispersion_gain=timing.get("dispersion_gain", 0.0), rng=rng)
+    try:
+        # First call builds the tree and its dynamics (velocity jitter, arrival times);
+        # later timesteps reuse the same tree through ``head``.
+        _, max_t0, head = bolus_injection(resized, 0, **dyn)
+    except (ValueError, IndexError, RuntimeError) as exc:
+        print(f"[{index}] skipping: bolus simulation failed ({exc})")
+        return
+    timesteps = sample_timesteps(timing, params, max_t0, rng)
+    print(f"[{index}] max contrast arrival time: {max_t0:.1f}; timesteps {timesteps}")
+
+    rendered = []
+    for t in timesteps:
         volume_name = os.path.join(
             paths["volumes"],
             f"Lnet_d{params['d0']:.2f}_iter{params['niter']}_t{t}_num{index}.nii.gz",
         )
-        resized = resize_network(network, dmin, dmax, tVol=tissue_volume)
-
-        try:
-            with_bolus, max_t0 = bolus_injection(
-                resized,
-                t,
-                alpha=params["alpha"],
-                beta=params["beta"],
-                V_base=params["v_base"],
-                P_flow=params["p_flow"],
-                interp_coords_factor=0,
-            )
-        except (ValueError, IndexError, RuntimeError) as exc:
-            print(f"[{index}] skipping: bolus simulation failed ({exc})")
-            return
-
-        print(f"[{index}] max contrast arrival time: {max_t0}")
+        with_bolus, _, _ = bolus_injection(resized, t, head=head, **dyn)
         image = process_network_fluid(with_bolus, dmin, dmax, tVol=tissue_volume, rs=False)
         image = image.astype("float32")
         if not np.any(image > 0):
             # No contrast anywhere at this timestep (before arrival or after the
-            # washout tail): nothing to render.  See ``t_start``/``t_end`` in the config.
+            # washout tail): nothing to render.
             print(f"[{index}] t={t}: no contrast in the volume, skipping")
             continue
 
@@ -255,8 +294,15 @@ def generate_sample(index, config, tissue_volume, header, affine, paths, device=
         volume = np.where(image == 0, AIR_HU, image * CONTRAST_SCALE)
         save_numpy_to_nii(volume, volume_name, header, affine)
 
-        render_projection(volume_name, paths["projections"], config["projection"], device=device)
+        for rotation, projection in render_projection(volume_name, config["projection"], device=device):
+            rendered.append((volume_name, rotation, projection))
         print(f"[{index}] t={t} done in {time.time() - start:.1f}s")
+
+    if not rendered:
+        return
+    proj_cfg = config["projection"]
+    scale = max(float(p.max()) for _, _, p in rendered) if proj_cfg.get("normalise", "per_tree") == "per_tree" else None
+    save_projections(rendered, paths["projections"], proj_cfg, scale=scale)
 
 
 def main():
@@ -300,9 +346,10 @@ def main():
     for path in paths.values():
         os.makedirs(path, exist_ok=True)
 
+    rng = np.random.default_rng(args.seed)
     num_samples = args.num_samples or config["vessel_generation"]["num_samples"]
     for index in range(num_samples):
-        generate_sample(index, config, tissue_volume, header, affine, paths, device=args.device)
+        generate_sample(index, config, tissue_volume, header, affine, paths, device=args.device, rng=rng)
 
 
 if __name__ == "__main__":
