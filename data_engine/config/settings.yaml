@@ -3,6 +3,14 @@
 # Ranges are sampled independently for every synthetic vessel tree, which is what
 # gives the corpus its anatomical and appearance diversity.
 
+# Synthesis grid (replaces the former reference-CT requirement): the 3-D volume in
+# which trees are voxelised and from which the DRR is rendered.  256^3 voxels of
+# 1 mm, centred on the origin, is the setting used for the paper.
+grid:
+  size: [256, 256, 256]      # voxels
+  spacing_mm: [1.0, 1.0, 1.0]
+  centre_origin: true
+
 vessel_generation:
   num_samples: 2000          # number of vessel trees to generate
 

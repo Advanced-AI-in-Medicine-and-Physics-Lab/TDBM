@@ -14,7 +14,7 @@ modalities without fine-tuning.
 | --- | --- | --- |
 | 1 | `step1_generate_projections.py` | Grows a 3-D arterial tree with a stochastic L-system under Murray's-law constraints, simulates contrast propagation, voxelises the 4-D field and renders it with a differentiable DRR. |
 | 2 | `step2_compose_xca.py` | Fuses vessel projections with MixUp-ed real contrast-free backgrounds into paired training images. |
-| 3 | `step3_add_poisson_noise.py` | Adds randomised signal-dependent Poisson noise. |
+| 3 | `step3_add_poisson_noise.py` | Adds randomised, zero-mean, signal-dependent acquisition noise (darker = noisier, calibrated on real frames). |
 
 ### Step 1 — vessel trees and projections
 
@@ -51,11 +51,21 @@ vessel-aware contrastive loss exploits during training.
 
 ### Step 3 — acquisition noise
 
-Poisson noise is applied in three regimes: none (20%), a realisation shared
-between the paired images and the background (40%), and an independent
-realisation per image (40%). Sharing matters: if only the contrast-filled images
-were noisy, the network could detect vessels from the noise pattern instead of
-the anatomy.
+Zero-mean Gaussian noise whose standard deviation follows the log-processed X-ray
+law `sigma(I) = sigma0 * (128 / clip(I, 96, 255))^0.85` (flat in the dark range,
+decreasing towards bright pixels; `sigma0` is drawn per image from 1.2-3.6 gray
+levels; fitted on 150 real contrast-free frames). Three regimes: none (20%), a realisation shared between
+the paired images and the background (40%), and an independent realisation per
+image (40%). Sharing matters: if only the contrast-filled images were noisy, the
+network could detect vessels from the noise pattern instead of the anatomy. In
+the shared regime the field is drawn from the vessel-free background, so it is
+identical on all four images and carries no vessel information.
+
+`--model poisson-legacy` reproduces the earlier implementation for comparison. It
+added a raw Poisson *sample* to the image, which was mostly a brightness bias
+(8-24 %), had variance growing with brightness, and in the shared regime
+imprinted a vessel-shaped dip of 8-24 % of the vessel attenuation into the
+background targets.
 
 ## Usage
 
@@ -64,7 +74,6 @@ pip install -r ../requirements.txt -r requirements.txt
 
 python step1_generate_projections.py \
     --config config/settings.yaml \
-    --reference-volume /path/to/reference_ct.nii.gz \
     --output-dir output --num-samples 2000
 
 python step2_compose_xca.py \
@@ -78,18 +87,20 @@ python step3_add_poisson_noise.py \
 
 ### Inputs you need to supply
 
-* **A reference NIfTI volume.** Only its header, affine and dimensions are used,
-  to define the synthesis grid and the DRR geometry. Any CT volume of the region
-  of interest works.
 * **A pool of real contrast-free XCA frames.** Frames captured before contrast
   injection, cropped to remove burned-in annotations. These provide realistic
   background anatomy and detector texture; without them the synthetic images look
   too clean and the domain gap widens.
 
+No reference CT is required: the synthesis grid (voxel count and spacing) is
+defined in `config/settings.yaml` (`grid` section, 256^3 voxels of 1 mm by
+default). `--reference-volume` can still be passed to copy the grid geometry
+from an existing NIfTI volume.
+
 ## Configuration
 
-All sampling ranges live in `config/settings.yaml`, documented inline:
-tree morphology (`vessel_generation`), contrast dynamics
+All sampling ranges live in `config/settings.yaml`, documented inline: the
+synthesis grid (`grid`), tree morphology (`vessel_generation`), contrast dynamics
 (`contrast_dynamics`) and projection geometry (`projection`). Widening the
 ranges increases diversity at the cost of realism; the shipped values are the
 ones used for the paper.
@@ -97,7 +108,9 @@ ones used for the paper.
 ## Cost
 
 Step 1 is the bottleneck: it is dominated by voxel traversal and DRR rendering,
-and it needs a GPU for `diffdrr`. Steps 2 and 3 are CPU-only and cheap. The paper
+and it needs a GPU for `diffdrr`. Timesteps at which the volume holds no contrast
+(before arrival or after the washout tail) are skipped rather than rendered as
+empty frames. Steps 2 and 3 are CPU-only and cheap. The paper
 trains on 50,000 composed pairs; the ablation shows performance rising
 monotonically from 5k to 50k, so more data is worth the compute.
 

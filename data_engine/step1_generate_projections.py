@@ -14,10 +14,14 @@ For every synthetic sample this script
 The output is one contrast-only projection per timestep, which
 ``step2_compose_xca.py`` then fuses with real contrast-free backgrounds.
 
+The synthesis grid (voxel count and spacing) is defined in the config
+(``grid`` section); no reference CT is needed.  ``--reference-volume`` remains
+available to copy the grid geometry (header/affine/dimensions) from an existing
+NIfTI volume instead.
+
 Usage::
 
-    python step1_generate_projections.py --reference-volume /path/to/ct.nii.gz \\
-        --output-dir output --num-samples 2000
+    python step1_generate_projections.py --output-dir output --num-samples 2000
 """
 
 import argparse
@@ -47,6 +51,30 @@ from vsystem.vSystem import F
 # scale applied to the simulated contrast concentration.
 AIR_HU = -1000
 CONTRAST_SCALE = 1000
+
+
+def make_synthetic_grid(config):
+    """Build the NIfTI header/affine of the synthesis grid from the config.
+
+    The grid is isotropic by default (``grid.size`` voxels of ``grid.spacing_mm``
+    millimetres, centred on the origin), which is all the voxeliser and the DRR
+    renderer need; no reference CT is required.
+    """
+    grid = config.get("grid", {})
+    size = np.asarray(grid.get("size", [256, 256, 256]), dtype=int)
+    spacing = np.asarray(grid.get("spacing_mm", [1.0, 1.0, 1.0]), dtype=float)
+    if size.shape != (3,) or spacing.shape != (3,):
+        raise ValueError("grid.size and grid.spacing_mm must have three entries")
+    affine = np.diag([*spacing, 1.0])
+    if grid.get("centre_origin", True):
+        affine[:3, 3] = -(size - 1) * spacing / 2.0
+    header = nib.Nifti1Header()
+    header.set_data_shape(tuple(int(v) for v in size))
+    header.set_zooms(tuple(float(v) for v in spacing))
+    header.set_xyzt_units("mm")
+    header.set_sform(affine, code=1)
+    header.set_qform(affine, code=1)
+    return header, affine, size
 
 
 def read_nii_header(file_path):
@@ -131,9 +159,14 @@ def render_projection(volume_path, output_folder, config, device="cuda"):
                 height=config.get("detector_height", 512),
             )
 
-        normalized = (
-            255 * (projection - projection.min()) / (projection.max() - projection.min())
-        ).byte()
+        span = float(projection.max() - projection.min())
+        if not (span > 0):
+            # Contrast-free volume (before arrival / after washout): a constant
+            # projection would become NaN -> all-black PNG.  Skip it instead.
+            print(f"  skipping empty projection of {os.path.basename(volume_path)}")
+            del projection
+            continue
+        normalized = (255 * (projection - projection.min()) / span).byte()
         image = Image.fromarray(normalized.cpu().numpy(), "L")
         image = ImageEnhance.Contrast(image).enhance(config.get("contrast_enhance", 3.0))
 
@@ -212,6 +245,11 @@ def generate_sample(index, config, tissue_volume, header, affine, paths, device=
         print(f"[{index}] max contrast arrival time: {max_t0}")
         image = process_network_fluid(with_bolus, dmin, dmax, tVol=tissue_volume, rs=False)
         image = image.astype("float32")
+        if not np.any(image > 0):
+            # No contrast anywhere at this timestep (before arrival or after the
+            # washout tail): nothing to render.  See ``t_start``/``t_end`` in the config.
+            print(f"[{index}] t={t}: no contrast in the volume, skipping")
+            continue
 
         # Vessel-free voxels are air; vessel voxels carry the contrast concentration.
         volume = np.where(image == 0, AIR_HU, image * CONTRAST_SCALE)
@@ -223,11 +261,12 @@ def generate_sample(index, config, tissue_volume, header, affine, paths, device=
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Generate synthetic vascular volumes and their DRR projections."
+        description="Generate synthetic vascular volumes and their DRR projections (no reference CT needed)."
     )
     parser.add_argument("--config", default="config/settings.yaml", help="Engine settings (YAML).")
-    parser.add_argument("--reference-volume", required=True,
-                        help="NIfTI volume whose header/affine and dimensions define the synthesis grid.")
+    parser.add_argument("--reference-volume", default=None,
+                        help="Optional NIfTI volume whose header/affine and dimensions replace the config's grid "
+                             "(kept for backwards compatibility; the engine does not need a CT).")
     parser.add_argument("--output-dir", default="output",
                         help="Root output directory; volumes/ and projections/ are created inside.")
     parser.add_argument("--num-samples", type=int, default=None,
@@ -243,10 +282,16 @@ def main():
         random.seed(args.seed)
         np.random.seed(args.seed)
 
-    reference = nib.load(args.reference_volume)
-    header, affine = reference.header, reference.affine
-    tissue_volume = header["dim"][1:4]
-    print(f"Synthesis grid: {tuple(tissue_volume)}")
+    if args.reference_volume:
+        reference = nib.load(args.reference_volume)
+        header, affine = reference.header, reference.affine
+        tissue_volume = np.asarray(header["dim"][1:4], dtype=int)
+        print(f"Synthesis grid from {args.reference_volume}: {tuple(tissue_volume)} voxels, "
+              f"spacing {tuple(round(float(z), 3) for z in header.get_zooms()[:3])} mm")
+    else:
+        header, affine, tissue_volume = make_synthetic_grid(config)
+        print(f"Synthesis grid from config: {tuple(tissue_volume)} voxels, "
+              f"spacing {tuple(config.get('grid', {}).get('spacing_mm', [1.0, 1.0, 1.0]))} mm")
 
     paths = {
         "volumes": os.path.join(args.output_dir, "volumes"),

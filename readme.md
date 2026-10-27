@@ -100,9 +100,9 @@ intensity. See [Inference](#inference) for the available options.
 
 ### Generating synthetic training data
 
-The engine runs in three steps. Steps 1 and 2 need one reference CT volume (for
-the synthesis grid geometry) and a pool of real XCA frames captured *before*
-contrast injection, which serve as backgrounds.
+The engine runs in three steps. It needs a pool of real XCA frames captured
+*before* contrast injection, which serve as backgrounds; the synthesis grid is
+defined in the config (no reference CT is required).
 
 ```bash
 cd data_engine
@@ -110,7 +110,6 @@ cd data_engine
 # 1. Vessel trees -> contrast dynamics -> volumes -> DRR projections
 python step1_generate_projections.py \
     --config config/settings.yaml \
-    --reference-volume /path/to/reference_ct.nii.gz \
     --output-dir output --num-samples 2000
 
 # 2. Fuse projections with MixUp-ed real backgrounds into paired training images
@@ -119,7 +118,7 @@ python step2_compose_xca.py \
     --backgrounds /path/to/contrast_free_frames \
     --output ../data/synthetic/train_clean --num-samples 50000
 
-# 3. Add randomised Poisson acquisition noise
+# 3. Add randomised acquisition noise (zero-mean, darker = noisier, calibrated on real frames)
 python step3_add_poisson_noise.py \
     --input ../data/synthetic/train_clean \
     --output ../data/synthetic/train

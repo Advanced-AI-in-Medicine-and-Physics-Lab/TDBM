@@ -55,7 +55,7 @@ class ImageDataset(Dataset):
         self.image_paths = []
         self.folder_to_images = {}
 
-        for root, _, files in os.walk(image_dir):
+        for root, _, files in os.walk(image_dir, followlinks=True):
             files = sorted(f for f in files if f.lower().endswith(IMAGE_EXTENSIONS))
             full_paths = [os.path.join(root, f) for f in files]
             if full_paths:
