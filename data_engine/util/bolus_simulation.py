@@ -249,64 +249,46 @@ def print_vessel(head):
 
 
 def coordinates_back(head, t):
-    """(Modified to use GammaVariate and t0)"""
-    stack = [head]
-    strand_last = 0
-    updaten = []
+    """Write the tree back as a ``5 x N`` array ``[x, y, z, d, I]`` for the voxeliser.
 
-    # Pre-calculate Max Concentration for normalization
-    # Find the node with the highest peak intensity to normalize all intensities
-    max_overall_conc = 1e-6 # Initialize with small positive number
-    all_nodes = [head]
-    temp_stack = [head]
-    while temp_stack:
-        node = temp_stack.pop()
-        if hasattr(node, 'gamma'):
-            t_peak = node.gamma.t0 + node.gamma.alpha * node.gamma.beta
-            max_overall_conc = max(max_overall_conc, node.gamma.sample(t_peak))
-            temp_stack.extend(node.next)
-        all_nodes.extend(node.next)
-    
-    # Reset stack for actual processing
-    stack = [head]
+    ``process_network_fluid`` rasterises a segment between every pair of
+    *consecutive non-NaN* columns, so the branch structure has to be encoded in
+    the column order: every parent->child edge is written as its own two-point
+    segment followed by a NaN separator column.  (An earlier version returned the
+    plain depth-first node list without separators, which made the voxeliser draw
+    spurious straight segments between the end of one branch and the start of the
+    next, so the rendered trees looked like disconnected crossing rods.)
 
+    Intensities are the gamma-variate concentration at time ``t`` normalised by
+    the highest peak concentration in the tree.
+    """
+    # Highest peak concentration over the tree (normalisation constant).
+    max_overall_conc = 1e-6
+    stack = [head]
     while stack:
         node = stack.pop()
-        if node:
-            # Need to handle the strand logic carefully, assuming you have a way to define strand breaks
-            # The original code used strand index from stack (strand, node = stack.pop()), 
-            # but that logic is complex to maintain with simple DFS. 
-            # I'll simplify the original logic here assuming strand breaks are handled by NaNs in the final array structure.
-            
-            # --- Original Strand Break Logic Missing Here ---
-            
-            # Compute normalized intensity I
-            if hasattr(node, 'gamma'):
-                conc = node.gamma.sample(t)
-                # I = Normalized Intensity
-                I = conc / max_overall_conc
-            else:
-                I = 0.0
-            
-            # Append new coordinates/properties
-            if len(updaten) == 0:
-                updaten = np.array([[node.x, node.y, node.z, node.d, I]]).T
-            else:
-                updaten = np.c_[
-                    updaten, [node.x, node.y, node.z, node.d, I]
-                ]
-            
-            stack.extend(node.next)
-            
-    # NOTE: The logic for inserting NaN breaks between strands is complex and requires
-    # traversing the tree in a way that tracks strand beginnings/ends.
-    # Given the complexity, I'll return the continuous data array and assume the 
-    # consumer (projection_generator) can handle it, or that the original code's 
-    # NaN insertion logic (which was already complex) is integrated back carefully.
-    
-    # We return the transpose (rows as points) or original format (cols as points)?
-    # Original bolus_injection returned (5 x N) array (cols as points), so we stick to that.
-    return updaten
+        if hasattr(node, "gamma"):
+            t_peak = node.gamma.t0 + node.gamma.alpha * node.gamma.beta
+            max_overall_conc = max(max_overall_conc, node.gamma.sample(t_peak))
+        stack.extend(node.next)
+
+    def column(node):
+        intensity = node.gamma.sample(t) / max_overall_conc if hasattr(node, "gamma") else 0.0
+        return [node.x, node.y, node.z, node.d, intensity]
+
+    separator = [np.nan] * 5
+    columns = []
+    stack = [head]
+    while stack:
+        node = stack.pop()
+        for child in node.next:
+            columns.append(column(node))
+            columns.append(column(child))
+            columns.append(separator)
+            stack.append(child)
+    if not columns:  # a single isolated node
+        columns = [column(head)]
+    return np.array(columns, dtype=float).T
 
 
 def bolus_injection(coords, t, alpha=2.0, beta=1.0, V_base=1.0, P_flow=1.0, interp_coords_factor=0):

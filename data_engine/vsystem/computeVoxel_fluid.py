@@ -186,9 +186,11 @@ def transversal(
 
 
 def discretisation(p1, dmin, dmax, tVol):
-    x = np.floor(tVol[0] * (p1[0] - dmin[0]) / (dmax[0] - dmin[0]))
-    y = np.floor(tVol[1] * (p1[1] - dmin[1]) / (dmax[1] - dmin[1]))
-    z = np.floor(tVol[2] * (p1[2] - dmin[2]) / (dmax[2] - dmin[2]))
+    # Clamp to the grid: a negative index would wrap around to the far side of the
+    # volume in NumPy and draw spurious voxels there.
+    x = np.clip(np.floor(tVol[0] * (p1[0] - dmin[0]) / (dmax[0] - dmin[0])), 0, tVol[0] - 1)
+    y = np.clip(np.floor(tVol[1] * (p1[1] - dmin[1]) / (dmax[1] - dmin[1])), 0, tVol[1] - 1)
+    z = np.clip(np.floor(tVol[2] * (p1[2] - dmin[2]) / (dmax[2] - dmin[2])), 0, tVol[2] - 1)
     return (
         np.array([x, y, z, p1[3], p1[4]]).reshape(-1, 1)
         if len(p1) > 4
