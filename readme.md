@@ -297,13 +297,14 @@ Here are more results from zero-shot vessel segmentation:
 ## Citation
 
 ```bibtex
-@article{hao2026tdbm,
-  title   = {Temporal Diffusion Bridge Model for Vessel Extraction Using
-             Physics-informed Synthetic Data},
-  author  = {Hao, Jinkui and Cantrell, Donald R. and Abdalla, Ramez and
-             Ansari, Sameer A. and Zhou, Bo},
-  journal = {XXX},
-  year    = {2026}
+@misc{hao2026temporaldiffusionbridgemodel,
+      title={Temporal Diffusion Bridge Model for Vessel Extraction Using Physics-informed Synthetic Data}, 
+      author={Jinkui Hao and Donald R. Cantrell and Ramez Abdalla and Sameer A. Ansari and Bo Zhou},
+      year={2026},
+      eprint={2610.14105},
+      archivePrefix={arXiv},
+      primaryClass={eess.IV},
+      url={https://arxiv.org/abs/2610.14105}, 
 }
 ```
 
