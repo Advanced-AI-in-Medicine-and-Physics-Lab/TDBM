@@ -246,7 +246,6 @@ TDBM/
 
 ### Vessel Extraction in XCA (Internal & External Dataset)
 
-> The following results are from the **internal dataset** and are provided for demonstration purposes only.
 
 <div align="center">
 
@@ -265,6 +264,7 @@ https://github.com/user-attachments/assets/75cec402-e903-4c5e-b08a-592f778337e4
 </div>
 
 ---
+> The following results are from the **internal dataset** and are provided for demonstration purposes only.
 
 https://github.com/user-attachments/assets/f90df143-a752-4c15-893c-36056dac6aad
 
